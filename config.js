@@ -3,7 +3,7 @@ import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 const secretClient = new SecretManagerServiceClient();
 export async function getCert() {
   const [version] = await secretClient.accessSecretVersion({
-    name: "projects/PROJECT_ID/secrets/cert-a1/versions/latest",
+    name: "projects/salesforcenfe/secrets/cert-a1/versions/latest",
   });
   const payload = version.payload.data.toString("utf8");
   const [p12Base64, password] = payload.split("||");
