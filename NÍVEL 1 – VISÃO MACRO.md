@@ -1,3 +1,5 @@
+## NÍVEL 1 – VISÃO MACRO
+
 ### Premissas
 
 - **Integração síncrona**: callout direto do Salesforce Flow → Middleware (timeout em **60 segundos**).
@@ -6,9 +8,31 @@
 - **Alertas**: notificações por **e-mail** para falhas graves ou Dead-Letter.
 - **Certificado A1**: pode ser guardado no Salesforce ou no Middleware, desde que com criptografia e acesso restrito; rotação anual.
 
----
 
 ### Proposta Arquitetural
+
+``` text
+flowchart LR
+  subgraph Salesforce
+    F[Flow: NFConsulta__c to Callout] -->|JSON| M1[API Middleware]
+    M1 -->|Callback JSON| U[Atualiza NFConsulta__c]
+  end
+  subgraph Middleware_GCP
+    M2[Recebe JSON] --> M3[Converte JSON to XML e Assina Cert A1]
+    M3 --> M4[SOAP HTTPS to Prefeitura]
+    M4 -->|XML| M5[Converte XML to JSON]
+    M5 --> M6{Tempo < 60s?}
+    M6 -->|Sim| R[Retorna JSON síncrono ao SF]
+    M6 -->|Não e < 180s| retry[Retry com backoff exp.]
+    retry --> M4
+    M6 -->|Mais de 180s| queue[Enfileira em DLQ Pub/Sub]
+    queue --> notify[Envia e-mail de alerta]
+    queue --> callback[Callback assíncrono a SF]
+  end
+  subgraph Prefeitura
+    P[Web Service SOAP TLS mútua]
+  end
+```
 
 ``` mermaid
 flowchart LR
@@ -33,13 +57,13 @@ flowchart LR
   end
 ```
 
----
 
 1. **Salesforce (Flow)**
 
     - Dispara callout síncrono (HTTP POST) ao endpoint do Middleware.
     - Timeout configurado em 60 segundos.
     - Aguardar resposta ou falha no mesmo contexto de execução.
+
 
 2. **Middleware (Node.js @ GCP)**
 
@@ -64,7 +88,6 @@ flowchart LR
     - TLS mútua obrigatória via Certificado A1.
     - Retorna XML com dados oficiais da NF (dados de emissor, itens, valores, status).
 
----
 
 ### Pontos Críticos de Falha
 
@@ -73,7 +96,6 @@ flowchart LR
 - **Assinatura digital** (certificado expirado ou inválido)
 - **Parsing XML** (schemas ou WSDLs desatualizados)
 
----
 
 ### Estratégia de Resiliência Geral
 
