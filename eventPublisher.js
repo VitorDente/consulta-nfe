@@ -1,16 +1,22 @@
 import axios from "axios";
+import { PubSub } from "@google-cloud/pubsub";
 
-// Reaproveita o mesmo método para Success e Failed
-export async function publishPlatformEvent(callback, result) {
-  await axios.post(
-    callback.url,
-    {
-      ConsultaId__e: result.consultaId,
-      Status__e: result.status,
-      DataEmissao__e: result.dataEmissao || null,
-      ValorTotal__e: result.valorTotal || null,
-      Error__e: result.error || null,
-    },
-    { headers: { Authorization: `Bearer ${callback.jwt}` } }
-  );
+// Inicializa o cliente Pub/Sub
+const pubsub = new PubSub();
+// Nome do tópico para publicação de eventos de plataforma
+const TOPIC_NAME = "nfe-events";
+
+/**
+ * Publica um evento de plataforma contendo dados da NF-e
+ * @param {{ numeroNfe: string, resultado: string }} eventData
+ */
+export async function publishPlatformEvent(eventData) {
+  const dataBuffer = Buffer.from(JSON.stringify(eventData));
+  try {
+    const messageId = await pubsub.topic(TOPIC_NAME).publish(dataBuffer);
+    console.log(`Evento publicado no tópico ${TOPIC_NAME}, ID: ${messageId}`);
+  } catch (err) {
+    console.error("Erro ao publicar evento:", err);
+    throw err;
+  }
 }

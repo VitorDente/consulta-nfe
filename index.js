@@ -1,7 +1,6 @@
 import express from "express";
 import { consultaWithCircuit } from "./soapClient.js";
 import { buildSignedXml } from "./transformSign.js";
-import { publishPlatformEvent } from "./eventPublisher.js"; // se precisar
 
 const app = express();
 app.use(express.json());
@@ -12,30 +11,32 @@ app.post("/consultar", async (req, res) => {
     return res.status(400).json({ erro: "numeroNfe e cnpj obrigatórios" });
 
   const xmlBody = `
-    <PedidoConsultaNFe xmlns="http://www.prefeitura.sp.gov.br/nfe">
-      <CPFCNPJRemetente><CNPJ>${cnpj}</CNPJ></CPFCNPJRemetente>
-      <NumeroNFe>${numeroNfe}</NumeroNFe>
-    </PedidoConsultaNFe>`;
+<PedidoConsultaNFe xmlns="http://www.prefeitura.sp.gov.br/nfe">
+  <CPFCNPJRemetente>
+    <CNPJ>${cnpj}</CNPJ>
+  </CPFCNPJRemetente>
+  <NumeroNFe>${numeroNfe}</NumeroNFe>
+</PedidoConsultaNFe>`;
 
-  // Carrega certificado PFX de Secret Manager
-  const projectId = "standoutnfeD";
+  // Carregar PFX do Secret Manager
+  const projectId = "salesforcenfe";
   const secretId = "certificado-nfe";
   const passphrase = "_VubeKLuV7";
   const pfxBuffer = await loadPfx(secretId, projectId);
 
-  // Assina XML
+  // Assinar XML
   const signedXml = buildSignedXml(xmlBody, pfxBuffer, passphrase);
 
-  // Envia SOAP
+  // Montar Envelope SOAP
   const envelope = `
-    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
-      <soapenv:Body>
-        <ConsultaNFe xmlns="http://www.prefeitura.sp.gov.br/nfe">
-          <VersaoSchema>1</VersaoSchema>
-          <MensagemXML><![CDATA[${signedXml}]]></MensagemXML>
-        </ConsultaNFe>
-      </soapenv:Body>
-    </soapenv:Envelope>`;
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Body>
+    <ConsultaNFe xmlns="http://www.prefeitura.sp.gov.br/nfe">
+      <VersaoSchema>1</VersaoSchema>
+      <MensagemXML><![CDATA[${signedXml}]]></MensagemXML>
+    </ConsultaNFe>
+  </soapenv:Body>
+</soapenv:Envelope>`;
 
   const result = await consultaWithCircuit(envelope);
   res.json({ status: "ok", numeroNfe, dados: result });
